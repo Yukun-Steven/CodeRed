@@ -99,6 +99,8 @@ export function setReady(room, playerId, ready) {
 // A WeakMap is like a Map, but it forgets a room automatically once that room is deleted.
 // We keep this here instead of on the room so it isn't sent to every browser.
 const missionStartTimes = new WeakMap();
+const missionRunIds = new WeakMap();
+let nextRunId = 0;
 
 // game:start — the host presses Start Mission.
 export function startMission(room, playerId) {
@@ -123,6 +125,7 @@ export function startMission(room, playerId) {
   room.stage = 'mission';
   room.progress = { frontend: false, backend: false, devops: false };
   missionStartTimes.set(room, Date.now());
+  missionRunIds.set(room, ++nextRunId);
   return { room };
 }
 
@@ -132,10 +135,10 @@ export function getMissionDuration(room) {
   return startedAt ? Date.now() - startedAt : 0;
 }
 
-// When this room's current mission started. Also works as a "mission ID": if the
-// mission is reset and started again, this number changes.
-export function getMissionStartTime(room) {
-  return missionStartTimes.get(room) ?? null;
+// Unique run identity, separate from the case ID and start time.
+// Changes on every start, including restarts in the same millisecond.
+export function getMissionRunId(room) {
+  return missionRunIds.get(room) ?? null;
 }
 
 // ---------- code challenges ----------

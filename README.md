@@ -8,18 +8,18 @@ We built **CODE RED!** for **Prompt 2** to help students practice debugging, com
 
 ## Play Online
 
-Play **CODE RED!** at **[https://codered.wiki](https://codered.wiki)** — no local installation required.
+The original team game is available at **[https://codered.wiki](https://codered.wiki)**. The training-case features in this Fork currently require the local setup below; they have not been deployed to that site.
 
-One player creates a room and shares the four-letter room code. Two teammates open the same website and join using that code.
+In this Fork, one player selects a training case, creates a room, and shares the four-letter room code. Two teammates connect to the same frontend and join using that code.
 
 For the best experience, use a desktop or laptop with a keyboard.
 
 ## How to Play
 
-1. Open [codered.wiki](https://codered.wiki) with two teammates, or use three browser tabs or windows to try all three roles yourself.
-2. One player selects **Create New Room** and shares the four-letter room code. The other two enter the code and select **Join Team**.
+1. Start this Fork locally using the instructions below. Open the frontend with two teammates, or use three browser tabs to try all three roles yourself.
+2. One player selects a training case, then **Create New Room** and shares the four-letter room code. The other two enter the code and select **Join Team**.
 3. Move to a workstation and press **E** to choose a role. Each player must have a different role: **Frontend**, **Backend**, or **DevOps**.
-4. Press **R** or use the **Ready** button. When all three players are ready, the **host** selects **Start Mission** to begin **Mission 01: Launch Day**.
+4. Press **R** or use the **Ready** button. When all three players are ready, the **host** selects **Start Mission** to begin the selected case (initially **Launch Day**).
 5. Edit the code in the Monaco editor and select **Run Tests** for feedback. The editor is locked while the backend reviews your submission with Gemini AI.
 6. Each passing submission updates **Team Progress** for all three players. At **3/3**, the host selects **Deploy to Production** to finish the simulated launch and show the results.
 
@@ -41,10 +41,10 @@ Click the square in the top-left corner to leave the room and return to Room Ent
 
 ## Run Locally
 
-Install **Node.js 22.9 or newer** and **npm**, then clone the repository.
+Install **Node.js 22.13 or newer (Node.js 24 recommended)** and **npm**, then clone the repository.
 
 ```bash
-git clone https://github.com/Sarveshvj/CodeRed.git
+git clone https://github.com/Yukun-Steven/CodeRed.git
 cd CodeRed
 ```
 
@@ -68,6 +68,7 @@ From the project root, run the following commands in your first terminal.
 ```bash
 cd server
 npm ci
+npm run mission:import -- ../shared/missions/launch-day.json
 npm run dev
 ```
 
@@ -85,7 +86,36 @@ Open the game at **[http://localhost:5173](http://localhost:5173)**. The backend
 
 The frontend connects to `http://localhost:3001` by default. If the backend runs at another address, set `VITE_SOCKET_URL` in `client/.env` and restart the frontend. Set the backend's `CLIENT_ORIGIN` to the frontend origin you use.
 
-Room state is stored in memory. Restarting the backend clears all rooms and mission progress.
+Cases are stored in SQLite at `server/data/missions.sqlite` (ignored by Git). Set `MISSION_DB_PATH` to override the database path. Room state is still stored in memory; restarting the backend clears rooms and progress, but keeps imported cases.
+
+### Included training cases
+
+All three cases use one Frontend, one Backend and one DevOps seat (3 players).
+
+| Case | Frontend | Backend | DevOps |
+| --- | --- | --- | --- |
+| Launch Day | React counter updates | Inventory validation | Reverse proxy port |
+| Payment Service Outage | In-flight checkout guard | Idempotent ledger retries | Container health check |
+| Incident Dashboard Recovery | Immutable chronological sorting | One-based pagination | Container log rotation |
+
+The two additional cases were created for this Fork after the hackathon; the original game remains credited to sisyphus. Their infrastructure snippets use fictional image names and are reviewed as text, not deployed.
+
+Import the additional cases from the server directory, then choose **Refresh cases** on the entry screen:
+
+```bash
+npm run mission:import -- ../shared/missions/payment-outage.json
+npm run mission:import -- ../shared/missions/incident-dashboard.json
+```
+
+### Import training cases
+
+From `server`, run `npm run mission:import -- <path-to-case.json>`. Import Launch Day once using the command above; repeating an existing case ID/revision is rejected without changing it. For a new version, increment `revision`. Validation failures exit with an error and do not insert a case.
+
+The entry screen lists the latest imported revision of each case. Select a case before creating a room; teammates only need its room code. A room pins that case and revision, so importing an update cannot change an ongoing exercise. Refresh the case list after importing. An empty database shows no available cases and disables room creation; joining existing rooms is independent of case selection.
+
+Stage one supports three seats: one each of Frontend, Backend and DevOps. Other rosters are rejected during import. See [case format](shared/mission-format.md), [JSON Schema](shared/mission.schema.json) and [Launch Day](shared/missions/launch-day.json). Run `npm test` in `server` for SQLite and Socket.IO integration tests. Tests use a controlled reviewer and do not call Gemini.
+
+This Fork extends the original team project into a training tool. The original project history, sisyphus team attribution, and copyright below remain intact.
 
 ## AI Usage Disclosure
 

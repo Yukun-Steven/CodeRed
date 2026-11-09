@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import Editor from '@monaco-editor/react';
-import { challenges, type Role } from '../game/data/challenges';
+import type { MissionChallenge } from '../network/socket';
 import { socket, type ErrorCode } from '../network/socket';
 
 type Props = {
-  role: Role;
+  task: MissionChallenge;
+  missionTitle: string;
+  missionId: string;
 };
 
 // Gemini can take several seconds; the contract asks for at least 20 s.
@@ -25,9 +27,8 @@ type FileName = 'code' | 'test' | 'readme';
 type TabName = 'terminal' | 'problems' | 'output';
 
 // VS Code-style mission editor. All UI is HTML/CSS, not an image.
-export default function CodeWorkspace({ role }: Props) {
-  const task = challenges[role];
-  const [code, setCode] = useState(task.initialCode);
+export default function CodeWorkspace({ task, missionTitle, missionId }: Props) {
+  const [code, setCode] = useState(task.starterCode);
   const [terminal, setTerminal] = useState(task.initialTerminal);
   const [file, setFile] = useState<FileName>('code');
   const [tab, setTab] = useState<TabName>('terminal');
@@ -37,39 +38,30 @@ export default function CodeWorkspace({ role }: Props) {
 
   // Start a new task when the player has a different role.
   useEffect(() => {
-    setCode(challenges[role].initialCode);
-    setTerminal(challenges[role].initialTerminal);
+    setCode(task.starterCode);
+    setTerminal(task.initialTerminal);
     setFile('code');
     setTab('terminal');
     setFullscreen(false);
     setPassed(false);
     setReviewing(false);
-  }, [role]);
+  }, [missionId, task.starterCode, task.initialTerminal]);
 
-  const testName = role === 'frontend'
-    ? 'Counter.test.tsx'
-    : role === 'backend'
-      ? 'inventory.test.js'
-      : 'deployment.test.js';
-
-  const testCode = role === 'frontend'
-    ? "test('counter should increase by 2', () => {\n  expect(countAfterClick).toBe(2);\n});"
-    : role === 'backend'
-      ? "test('stock never goes negative', () => {\n  expect(purchase(2, 5)).toBeRejected();\n});"
-      : '# Test: /api/health must reach port 8080';
+  const testName = task.testPreview.filename;
+  const testCode = task.testPreview.content;
 
   let filename = task.filename;
   let content = code;
-  let language = task.language;
+  let language = task.editorLanguage;
 
   if (file === 'test') {
     filename = testName;
     content = testCode;
-    language = role === 'frontend' ? 'typescript' : 'javascript';
+    language = task.testPreview.language;
   }
   if (file === 'readme') {
     filename = 'README.md';
-    content = '# Mission 01\n\n' + task.description + '\n\nFix the code and press Run Tests.';
+    content = '# ' + missionTitle + '\n\n' + task.description + '\n\nFix the code and press Run Tests.';
     language = 'markdown';
   }
 
@@ -123,7 +115,7 @@ export default function CodeWorkspace({ role }: Props) {
 
         <aside className="cr-explorer">
           <div className="cr-explorer-heading">EXPLORER</div>
-          <div className="cr-folder">⌄ mission-01/</div>
+          <div className="cr-folder">⌄ {missionId}/</div>
           <div className="cr-folder cr-subfolder">⌄ src/</div>
           <button type="button" className={file === 'code' ? 'cr-selected' : ''} onClick={() => setFile('code')}>
             {task.filename}
@@ -145,7 +137,7 @@ export default function CodeWorkspace({ role }: Props) {
 
           <div className="cr-monaco-box">
             <Editor
-              key={role + '-' + file}
+              key={missionId + '-' + file}
               height="100%"
               width="100%"
               theme="vs-dark"

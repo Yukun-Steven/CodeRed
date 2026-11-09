@@ -1,3 +1,5 @@
+import { getMissionStore, publicMission } from './missionStore.js';
+
 // Creates rooms, joins players, manages room capacity, and handles disconnections.
 //
 // This file only knows about rooms and players. It never talks to Socket.IO directly,
@@ -18,7 +20,7 @@ const SEATS = [
 const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 
 // All rooms live here, in memory. Key = room code ("KQZD"), value = the room object.
-// If the server restarts, this is emptied. That's fine for now (no database yet).
+// Restarting clears rooms; imported mission definitions persist separately in SQLite.
 const rooms = new Map();
 
 // ---------- helpers ----------
@@ -65,11 +67,17 @@ function makePlayer(id, name, seat) {
 
 // Makes a brand-new room with this player inside as the host.
 // Returns { room } on success or { error } on failure.
-export function createRoom(playerId, name) {
+export function createRoom(playerId, name, missionId, revision) {
   const cleaned = cleanName(name);
   if (!cleaned) return { error: 'INVALID_NAME' };
 
+  const mission = getMissionStore().get(missionId, revision);
+  if (!mission) return { error: 'MISSION_NOT_FOUND' };
+
   const room = {
+    missionId: mission.missionId,
+    missionRevision: mission.revision,
+    mission: publicMission(mission),
     code: makeRoomCode(),
     hostId: playerId,
     stage: 'lobby',

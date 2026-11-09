@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "missionId": "launch-day",
+  "revision": 1,
+  "title": "Launch Day",
+  "description": "It's launch day. Fix the counter, prevent inventory overselling, and restore the reverse proxy before the team ships.",
+  "supportedPlayerCounts": [
+    3
+  ],
+  "attribution": {
+    "team": "sisyphus",
+    "project": "CODE RED!",
+    "event": "Hack the Change YYC 2026",
+    "sourceRepository": "https://github.com/Sarveshvj/CodeRed",
+    "copyright": "Copyright © 2026 the CODE RED! team. All rights reserved."
+  },
+  "completion": "all-seats-pass-then-host-deploy",
+  "seats": [
+    {
+      "seatId": "frontend-1",
+      "roleId": "frontend",
+      "roleLabel": "Frontend",
+      "challenge": {
+        "title": "Fix the Frontend",
+        "description": "Clicking Increase should add 2, but the counter only goes up by 1.",
+        "filename": "Counter.tsx",
+        "editorLanguage": "typescript",
+        "starterCode": "import React, { useState } from 'react';\n\nexport default function Counter() {\n  const [count, setCount] = useState(0);\n\n  function increment() {\n    setCount(count + 1);\n    setCount(count + 1);\n  }\n\n  return (\n    <div>\n      <p>Count: {count}</p>\n      <button onClick={increment}>Increase</button>\n    </div>\n  );\n}",
+        "initialTerminal": "[Example failure output — not an executed test]\n$ npm test\nFAIL src/Counter.test.tsx\n  ✕ counter should increase by 2\n  Expected: 2\n  Received: 1\n\nHint: React state updates can use a stale value.\nTests: 1 failed, 0 passed",
+        "hint": "Try setCount(count + 2), or two functional updater calls.",
+        "testPreview": {
+          "filename": "Counter.test.tsx",
+          "language": "typescript",
+          "content": "test('counter should increase by 2', () => {\n  expect(countAfterClick).toBe(2);\n});",
+          "executable": false
+        },
+        "review": {
+          "mode": "gemini-review",
+          "language": "TypeScript (React)",
+          "task": "Clicking Increase should add 2, but the counter only goes up by 1. increment() calls setCount(count + 1) twice, and both calls read the same old value.",
+          "expected": "Clicking Increase once raises the count by exactly 2 (0 -> 2 -> 4).",
+          "criteria": [
+            "One click of Increase raises count by exactly 2.",
+            "Accepted approaches include setCount(count + 2) or two functional updates such as setCount(c => c + 1).",
+            "The component still renders the count and the Increase button."
+          ]
+        }
+      }
+    },
+    {
+      "seatId": "backend-1",
+      "roleId": "backend",
+      "roleLabel": "Backend",
+      "challenge": {
+        "title": "Fix the Backend",
+        "description": "Orders must not reduce stock below zero.",
+        "filename": "inventory.js",
+        "editorLanguage": "javascript",
+        "starterCode": "function purchase(stock, quantity) {\n  // Bug: negative stock is allowed\n  return stock - quantity;\n}\n\nmodule.exports = { purchase };",
+        "initialTerminal": "[Example failure output — not an executed test]\n$ npm test\nFAIL inventory.test.js\n  ✕ rejects a purchase larger than stock\n  Expected: order rejected\n  Received: -3\n\nHint: Validate the requested quantity before subtracting.\nTests: 1 failed, 0 passed",
+        "hint": "Add an if statement that rejects quantity > stock.",
+        "testPreview": {
+          "filename": "inventory.test.js",
+          "language": "javascript",
+          "content": "test('stock never goes negative', () => {\n  expect(purchase(2, 5)).toBeRejected();\n});",
+          "executable": false
+        },
+        "review": {
+          "mode": "gemini-review",
+          "language": "JavaScript (Node.js)",
+          "task": "Orders must not reduce stock below zero. purchase() subtracts quantity from stock without checking it first.",
+          "expected": "If quantity is greater than stock, the order is rejected (return early or throw). Otherwise it returns stock - quantity. Buying exactly the remaining stock is allowed and leaves 0.",
+          "criteria": [
+            "An order with quantity greater than stock is rejected by returning early or throwing an error.",
+            "The check actually runs before the subtraction; an empty or unreachable check does not count.",
+            "Valid orders (quantity <= stock) still return stock - quantity."
+          ]
+        }
+      }
+    },
+    {
+      "seatId": "devops-1",
+      "roleId": "devops",
+      "roleLabel": "DevOps",
+      "challenge": {
+        "title": "Fix the Deployment",
+        "description": "The backend listens on port 8080, but the reverse proxy is misconfigured.",
+        "filename": "nginx.conf",
+        "editorLanguage": "plaintext",
+        "starterCode": "server {\n  listen 80;\n\n  location /api/ {\n    proxy_pass http://localhost:3000;\n  }\n}",
+        "initialTerminal": "[Example failure output — not an executed test]\n$ curl /api/health\n502 Bad Gateway\n  connect() failed (111: Connection refused)\n  Upstream port: 3000\n  Backend port: 8080\n\nHint: Check the proxy_pass port.\nTests: 1 failed, 0 passed",
+        "hint": "Point proxy_pass at port 8080.",
+        "testPreview": {
+          "filename": "deployment.test.js",
+          "language": "plaintext",
+          "content": "# Test: /api/health must reach port 8080",
+          "executable": false
+        },
+        "review": {
+          "mode": "gemini-review",
+          "language": "nginx configuration",
+          "task": "The backend listens on port 8080, but the reverse proxy sends /api/ traffic to port 3000, causing 502 Bad Gateway.",
+          "expected": "Requests to /api/ are forwarded to http://localhost:8080.",
+          "criteria": [
+            "The /api/ location proxies to http://localhost:8080 with valid nginx syntax (including the semicolon).",
+            "No active proxy_pass to port 3000 remains.",
+            "Lines commented out with # do not count."
+          ]
+        }
+      }
+    }
+  ]
+}

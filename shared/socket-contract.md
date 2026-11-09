@@ -1,3 +1,15 @@
+> Stage-one case extension: the section immediately below supersedes fixed Mission 01 assumptions and the original room/create payload definitions. Other lobby and game events remain compatible.
+
+## Case selection and pinned rooms
+
+- Client sends `mission:list` with `{}`; ACK: `{ ok: true, missions: MissionSummary[] }`. Each summary includes missionId, revision, title, description, supportedPlayerCounts, attribution. Returns latest revision per ID.
+- Create via `room:join` with `{ name, missionId, revision }`. Missing or unknown case/version returns `MISSION_NOT_FOUND`.
+- Join via `room:join` with `{ name, roomCode }`; supplied case fields are ignored when joining an existing room.
+- All Room payloads add `missionId`, `missionRevision`, and `mission` (public metadata and seats with display-only challenges). Each seat has seatId, roleId, roleLabel, challenge. No challenge.review fields are sent.
+- `challenge:submit` remains `{ code }`. The backend obtains case/version from the room and role from the authenticated socket’s player. Arbitrary client case/role fields do not select the reviewer task.
+- Each new run receives a monotonic server-only runId; late AI results from an earlier run are discarded.
+- Stage one still requires exactly three distinct standard roles. A role maps to exactly one case seat. Same-role multiple-seat gameplay is deferred.
+
 <!-- CODE RED! multiplayer protocol. Both frontend and backend must implement the same event names and payloads. -->
 
 # CODE RED! — Socket.IO Contract (v1.0)

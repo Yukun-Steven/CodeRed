@@ -2,8 +2,8 @@
 
 # CODE RED! — Mission 01: Launch Day
 
-**Status:** Draft for team review.
-**Source of truth:** This file. `client/src/game/data/challenges.ts` (what players see) and `server/src/challenges.js` (what the server checks) must both match it. If you change a challenge, change this file first.
+**Status:** Historical team design notes; retained for provenance.
+**Current source of truth:** `shared/missions/launch-day.json`, validated with `shared/mission.schema.json` and imported into SQLite. The runtime uses the room’s pinned case/revision for both display and review. The original notes below include superseded demo-checker and syntax-specific criteria; they are not the current judge configuration. See `mission-format.md`.
 
 ---
 

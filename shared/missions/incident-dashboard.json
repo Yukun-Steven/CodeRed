@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "missionId": "incident-dashboard",
+  "revision": 1,
+  "title": "Incident Dashboard Recovery",
+  "description": "During an incident, the dashboard mutates shared event data, the API skips records between pages, and container logs grow without limits. Restore reliable investigation across the three roles.",
+  "supportedPlayerCounts": [
+    3
+  ],
+  "attribution": {
+    "team": "Yukun-Steven (Fork extension; original game by sisyphus)",
+    "project": "CODE RED! training extension",
+    "event": "Post-hackathon extension of Hack the Change YYC 2026 project",
+    "sourceRepository": "https://github.com/Yukun-Steven/CodeRed",
+    "copyright": "Original CODE RED! game: Copyright © 2026 the CODE RED! team. All rights reserved. This case was added in the Yukun-Steven Fork."
+  },
+  "completion": "all-seats-pass-then-host-deploy",
+  "seats": [
+    {
+      "seatId": "frontend-1",
+      "roleId": "frontend",
+      "roleLabel": "Frontend",
+      "challenge": {
+        "title": "Sort Events Without Mutating Props",
+        "filename": "EventList.tsx",
+        "editorLanguage": "typescript",
+        "description": "Events have unique IDs and valid ISO timestamps with explicit UTC or offset information. Display newest events first by actual time, without changing the events prop array or its objects. Keep the props/type and render each event exactly once with a stable ID key. Different timezone offsets mean lexical sorting is insufficient.",
+        "starterCode": "type IncidentEvent = { id: string; occurredAt: string; message: string };\ntype Props = { events: IncidentEvent[] };\n\nexport default function EventList({ events }: Props) {\n  const ordered = events.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));\n  return (\n    <ul>\n      {ordered.map(event => <li key={event.id}>{event.message}</li>)}\n    </ul>\n  );\n}\n",
+        "initialTerminal": "[Example incident output — not an executed test]\ndashboard render: input array order changed\nExpected newest event: B (09:00Z)\nObserved chronological sort uses strings\n\nHint: Separate the array you sort from the prop, then compare timestamps as instants rather than strings.",
+        "hint": "Separate the array you sort from the prop, then compare timestamps as instants rather than strings.",
+        "testPreview": {
+          "filename": "EventList.tsx.acceptance.txt",
+          "language": "plaintext",
+          "content": "Acceptance scenarios (illustrative; not executable tests)\n\nInput: A=2026-01-01T10:00:00+02:00 (08:00Z), B=2026-01-01T09:00:00Z.\nRendered order: B, A. Original array remains [A, B].\nA frozen input array must not throw during rendering.\nEmpty input -> empty list; one event -> one list item.",
+          "executable": false
+        },
+        "review": {
+          "mode": "gemini-review",
+          "language": "typescript",
+          "task": "Events have unique IDs and valid ISO timestamps with explicit UTC or offset information. Display newest events first by actual time, without changing the events prop array or its objects. Keep the props/type and render each event exactly once with a stable ID key. Different timezone offsets mean lexical sorting is insufficient.",
+          "expected": "Render in descending chronological order using parsed timestamps and leave the input untouched. Empty and single-event arrays remain valid.",
+          "criteria": [
+            "Sort a copied array (or use a non-mutating sorting method); never sort/reverse/splice the original props array or modify event objects.",
+            "Compare parsed instants numerically in descending order, correctly handling differing timezone offsets; lexical ordering alone does not pass.",
+            "Render every input event exactly once using event.id as its React key and event.message as content.",
+            "Preserve the EventList component and events prop and support empty/single-event input without special-case crashes."
+          ]
+        }
+      }
+    },
+    {
+      "seatId": "backend-1",
+      "roleId": "backend",
+      "roleLabel": "Backend",
+      "challenge": {
+        "title": "Close the Pagination Gap",
+        "filename": "pagination.js",
+        "editorLanguage": "javascript",
+        "description": "paginate(items, page, pageSize) uses one-based page numbers. For positive integer page/pageSize return that page without mutating items. Empty or out-of-range pages return []. Reject zero, negative, fractional or non-number page/pageSize with RangeError. Inputs items are arrays and practical page/pageSize values are small; keep the existing export.",
+        "starterCode": "function paginate(items, page, pageSize) {\n  const start = page * pageSize;\n  return items.slice(start, start + pageSize);\n}\n\nmodule.exports = { paginate };\n",
+        "initialTerminal": "[Example incident output — not an executed test]\nGET /events?page=1&pageSize=2\nExpected ids: a,b\nObserved ids: c,d\nThe first two incident records are missing\n\nHint: Translate the user-facing page number to a zero-based offset after validating both arguments.",
+        "hint": "Translate the user-facing page number to a zero-based offset after validating both arguments.",
+        "testPreview": {
+          "filename": "pagination.js.acceptance.txt",
+          "language": "plaintext",
+          "content": "Acceptance scenarios (illustrative; not executable tests)\n\nitems = [\"a\", \"b\", \"c\", \"d\", \"e\"], pageSize=2:\npage 1 -> [\"a\", \"b\"]\npage 2 -> [\"c\", \"d\"]\npage 3 -> [\"e\"]\npage 4 -> []\npage=0, 1.5, \"1\", NaN or pageSize=0, Infinity -> RangeError.\nOriginal items remains unchanged.",
+          "executable": false
+        },
+        "review": {
+          "mode": "gemini-review",
+          "language": "javascript",
+          "task": "paginate(items, page, pageSize) uses one-based page numbers. For positive integer page/pageSize return that page without mutating items. Empty or out-of-range pages return []. Reject zero, negative, fractional or non-number page/pageSize with RangeError. Inputs items are arrays and practical page/pageSize values are small; keep the existing export.",
+          "expected": "Page 1 begins at index 0; consecutive pages cover the data with no gaps or overlap. Invalid pagination arguments throw RangeError before slicing.",
+          "criteria": [
+            "Validate both page and pageSize as positive integers; reject strings, NaN, Infinity, fractions, zero and negative numbers with RangeError.",
+            "Compute the first index as (page - 1) * pageSize or a behaviorally equivalent one-based calculation.",
+            "Return at most pageSize consecutive items and allow a shorter final page.",
+            "Return [] for empty input or a valid page beyond the end, without changing items.",
+            "Preserve the paginate export and use actual inputs rather than hardcoded example results."
+          ]
+        }
+      }
+    },
+    {
+      "seatId": "devops-1",
+      "roleId": "devops",
+      "roleLabel": "DevOps",
+      "challenge": {
+        "title": "Bound Container Log Retention",
+        "filename": "compose.yaml",
+        "editorLanguage": "yaml",
+        "description": "The collector uses Docker Compose with the json-file logging driver. Configure per-container rotation to a maximum file size of 10m and 3 retained files. Logging options must be strings nested under the collector service logging.options. Preserve its image and restart policy. This is a fictional config exercise, not a deployment.",
+        "starterCode": "services:\n  collector:\n    image: example.invalid/training/event-collector:1\n    restart: unless-stopped\n    logging:\n      driver: json-file\n",
+        "initialTerminal": "[Example incident output — not an executed test]\ncollector container log: rotation not configured\nDisk usage grows continuously during the incident\n\nHint: Rotation belongs to the logging driver options; YAML numeric values need care when strings are required.",
+        "hint": "Rotation belongs to the logging driver options; YAML numeric values need care when strings are required.",
+        "testPreview": {
+          "filename": "compose.yaml.acceptance.txt",
+          "language": "plaintext",
+          "content": "Acceptance scenarios (illustrative; not executable tests)\n\nParse YAML and inspect services.collector.logging:\ndriver -> json-file\noptions[\"max-size\"] -> string \"10m\"\noptions[\"max-file\"] -> string \"3\"\nExisting image and restart policy remain present.\nThe sample image registry is fictional; do not deploy it.",
+          "executable": false
+        },
+        "review": {
+          "mode": "gemini-review",
+          "language": "yaml",
+          "task": "The collector uses Docker Compose with the json-file logging driver. Configure per-container rotation to a maximum file size of 10m and 3 retained files. Logging options must be strings nested under the collector service logging.options. Preserve its image and restart policy. This is a fictional config exercise, not a deployment.",
+          "expected": "The collector retains json-file logging and has string-valued max-size \"10m\" and max-file \"3\" under logging.options.",
+          "criteria": [
+            "Produce valid Compose YAML with logging under services.collector and driver json-file.",
+            "Set logging.options.max-size to the string \"10m\" and logging.options.max-file to the string \"3\".",
+            "Keep the given collector image and restart: unless-stopped; do not disable logging or remove the collector service.",
+            "Options at the document root or outside logging.options do not count; comments alone do not configure rotation."
+          ]
+        }
+      }
+    }
+  ]
+}

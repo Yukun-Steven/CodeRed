@@ -5,7 +5,7 @@ import { socket, type ChatMessage, type Facing, type Progress, type Room, type S
 import CodeWorkspace from './components/CodeWorkspace';
 import ResultsScreen from './components/ResultsScreen';
 import { EventBus } from './game/EventBus';
-import { challenges, type Role } from './game/data/challenges';
+import { type Role } from './game/data/challenges';
 
 export default function App() {
   // Room Entry: save the server-approved room and our player ID.
@@ -376,7 +376,8 @@ export default function App() {
 
   const shown = chatOpen ? messages : messages.filter(m => now - m.time < 8000).slice(-4);
   const avatar = (name: string) => import.meta.env.BASE_URL + 'assets/characters/player_' + name + '.png';
-  const title = role ? challenges[role].title : 'Launch Day';
+  const task = joinedRoom?.mission.seats.find(seat => seat.roleId === role)?.challenge;
+  const title = task?.title ?? joinedRoom?.mission.title ?? '';
 
   // The Lobby and Phaser canvas only mount after the server accepts join.
   if (!joinedRoom) {
@@ -398,7 +399,7 @@ export default function App() {
           <strong>CODE <em>RED!</em></strong>
         </div>
         <div className="stage-heading">
-          {stage === 'lobby' ? 'Team Lobby' : stage === 'mission' ? 'Mission 01: ' + title : 'Mission Complete'}
+          {stage === 'lobby' ? 'Team Lobby' : stage === 'mission' ? joinedRoom.mission.title + ': ' + title : 'Mission Complete'}
           <span className="room-session-tag">
             {joinedRoom.code} · {joinedRoom.players.length}/3 · {joinedRoom.hostId === myPlayerId ? 'HOST' : 'PLAYER'}
           </span>
@@ -421,8 +422,8 @@ export default function App() {
         {stage === 'lobby' ? (
           <>
             <section className="lobby-mission-card">
-              <div className="eyebrow">MISSION 01</div>
-              <h2>Launch Day</h2>
+              <div className="eyebrow">{joinedRoom.mission.title}</div>
+              <h2>{joinedRoom.mission.title}</h2>
               <p>☐ Fix critical bugs</p><p>☐ Pass tests</p><p>☐ Deploy to production</p>
             </section>
             <div className="lobby-instructions">WASD move · E select/cancel role · R ready · T chat</div>
@@ -436,7 +437,7 @@ export default function App() {
             <section className="mission-card">
               <div className="mission-warning">⚠</div>
               <div>
-                <div className="eyebrow">MISSION 01</div>
+                <div className="eyebrow">{joinedRoom.mission.title}</div>
                 <h2>{title}</h2>
                 <p><span className={myPassed ? 'checked' : ''}>{myPassed ? '☑' : '☐'}</span> Fix the bug</p>
                 <p><span className={myPassed ? 'checked' : ''}>{myPassed ? '☑' : '☐'}</span> Pass all tests</p>
@@ -459,7 +460,8 @@ export default function App() {
               </div>
             </section>
             <div className="station-sign">✦ {role?.toUpperCase()} WORKSTATION ✦</div>
-            <CodeWorkspace role={role || 'frontend'} />
+            {task && <CodeWorkspace key={joinedRoom.missionId + ':' + joinedRoom.missionRevision + ':' + role}
+              task={task} missionTitle={joinedRoom.mission.title} missionId={joinedRoom.missionId} />}
           </>
         ) : (
           <ResultsScreen room={joinedRoom} durationMs={durationMs}

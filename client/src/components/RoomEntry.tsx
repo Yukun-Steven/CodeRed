@@ -5,6 +5,7 @@ import {
   type ErrorCode,
   type JoinAck,
   type Room,
+  type MissionSummary,
 } from '../network/socket';
 import './RoomEntry.css';
 
@@ -15,6 +16,7 @@ type Props = {
 };
 
 const ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
+  MISSION_NOT_FOUND: 'This case version is unavailable. Refresh the case list.',
   INVALID_NAME: 'Please enter a name between 1 and 16 characters.',
   INVALID_ROOM_CODE: 'Room codes must contain exactly four letters.',
   ROOM_NOT_FOUND: 'Room not found. Double-check the four-letter code.',
@@ -23,7 +25,7 @@ const ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   ALREADY_IN_ROOM: 'You are already in a room. Refresh to start over.',
 };
 
-// Connect only when the user presses Create or Join.
+// Connect to load cases, create a room, or join an existing room.
 // Keep the socket alive after this screen closes.
 function waitForConnection(): Promise<void> {
   if (socket.connected) return Promise.resolve();
@@ -58,6 +60,29 @@ function waitForConnection(): Promise<void> {
 
 export default function RoomEntry({ onJoined, notice = '' }: Props) {
   const [name, setName] = useState('');
+  const [missions, setMissions] = useState<MissionSummary[]>([]);
+  const [selection, setSelection] = useState('');
+  const [loadingCases, setLoadingCases] = useState(true);
+  const [caseError, setCaseError] = useState('');
+  const [refresh, setRefresh] = useState(0);
+  const selected = missions.find(m => m.missionId + ':' + m.revision === selection);
+  useEffect(() => {
+    let active = true;
+    setLoadingCases(true);
+    setCaseError('');
+    waitForConnection().then(() => {
+      if (!active) return;
+      socket.timeout(7000).emit('mission:list', {}, (err, reply) => {
+        if (!active) return;
+        setLoadingCases(false);
+        if (err || !reply?.ok) { setCaseError('Could not load cases. Try again.'); return; }
+        setMissions(reply.missions);
+        setSelection(old => reply.missions.some(m => m.missionId + ':' + m.revision === old)
+          ? old : reply.missions[0] ? reply.missions[0].missionId + ':' + reply.missions[0].revision : '');
+      });
+    }).catch(err => { if (active) { setLoadingCases(false); setCaseError(err.message); } });
+    return () => { active = false; };
+  }, [refresh]);
   const [roomCode, setRoomCode] = useState('');
   const [busy, setBusy] = useState<'create' | 'join' | null>(null);
   const [connected, setConnected] = useState(socket.connected);
@@ -74,7 +99,7 @@ export default function RoomEntry({ onJoined, notice = '' }: Props) {
   }, []);
 
   async function enterRoom(mode: 'create' | 'join') {
-    if (busy) return;
+    if (busy || (mode === 'create' && !selected)) return;
 
     const cleanName = name.trim();
     if (cleanName.length < 1 || cleanName.length > 16) {
@@ -94,7 +119,7 @@ export default function RoomEntry({ onJoined, notice = '' }: Props) {
 
       const reply = await new Promise<JoinAck>((resolve, reject) => {
         const data = mode === 'create'
-          ? { name: cleanName }
+          ? { name: cleanName, missionId: selected!.missionId, revision: selected!.revision }
           : { name: cleanName, roomCode };
 
         socket.timeout(7000).emit('room:join', data, (err, response) => {
@@ -195,12 +220,26 @@ export default function RoomEntry({ onJoined, notice = '' }: Props) {
             </button>
           </form>
 
-          {/* Second row: full-width Create New Room button. */}
+          <div className="mission-picker">
+            <label className="room-entry-label" htmlFor="mission-select">TRAINING CASE</label>
+            <select id="mission-select" className="room-entry-input" value={selection}
+              disabled={loadingCases || busy !== null || missions.length === 0}
+              onChange={e => setSelection(e.target.value)}>
+              {!missions.length && <option value="">{loadingCases ? 'Loading cases…' : 'No cases available'}</option>}
+              {missions.map(m => <option key={m.missionId + ':' + m.revision} value={m.missionId + ':' + m.revision}>
+                {m.title} · {m.supportedPlayerCounts.join(', ')} players
+              </option>)}
+            </select>
+            {selected && <p>{selected.description}</p>}
+            {caseError && <p role="alert">{caseError}</p>}
+            {!loadingCases && <button type="button" disabled={busy !== null} onClick={() => setRefresh(n => n + 1)}>Refresh cases</button>}
+          </div>
+          {/* The selected case is pinned when creating the room. */}
           <form className="room-entry-create-form" onSubmit={createRoom}>
             <button
               className="room-entry-create"
               type="submit"
-              disabled={busy !== null || !name.trim()}
+              disabled={busy !== null || !name.trim() || !selected || loadingCases}
             >
               {busy === 'create' ? 'CONNECTING...' : 'CREATE NEW ROOM ↗'}
             </button>

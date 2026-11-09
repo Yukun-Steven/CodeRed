@@ -1,3 +1,4 @@
+import { getMissionStore } from './missionStore.js';
 // Starts the Express HTTP server and attaches the Socket.IO server.
 import { createServer } from 'node:http';
 import express from 'express';
@@ -8,6 +9,7 @@ const PORT = Number(process.env.PORT) || 3001;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 
 const app = express();
+getMissionStore(); // Open/migrate SQLite before accepting connections.
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true });

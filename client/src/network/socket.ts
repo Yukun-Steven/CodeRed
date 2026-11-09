@@ -23,7 +23,23 @@ export type Progress = {
   devops: boolean;
 };
 
+export type MissionSummary = {
+  missionId: string; revision: number; title: string; description: string;
+  supportedPlayerCounts: number[];
+  attribution: { team: string; project: string; event: string; sourceRepository: string; copyright: string };
+};
+export type MissionChallenge = {
+  title: string; description: string; filename: string; editorLanguage: string;
+  starterCode: string; initialTerminal: string; hint: string;
+  testPreview: { filename: string; language: string; content: string; executable: false };
+};
+export type PublicMission = MissionSummary & {
+  seats: { seatId: string; roleId: Role; roleLabel: string; challenge: MissionChallenge }[];
+};
 export type Room = {
+  missionId: string;
+  missionRevision: number;
+  mission: PublicMission;
   code: string;
   hostId: string;
   stage: Stage;
@@ -39,6 +55,7 @@ export type ChatMessage = {
 };
 
 export type ErrorCode =
+  | 'MISSION_NOT_FOUND'
   | 'INVALID_NAME'
   | 'INVALID_ROOM_CODE'
   | 'ROOM_NOT_FOUND'
@@ -92,8 +109,9 @@ interface ServerToClientEvents {
 
 // Events sent FROM the frontend TO the backend.
 interface ClientToServerEvents {
+  'mission:list': (data: object, callback: (reply: Ack<{ missions: MissionSummary[] }>) => void) => void;
   'room:join': (
-    data: { name: string; roomCode?: string },
+    data: { name: string; roomCode?: string; missionId?: string; revision?: number },
     callback: (reply: JoinAck) => void
   ) => void;
   'room:leave': (data: object) => void;

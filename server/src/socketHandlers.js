@@ -1,3 +1,4 @@
+import { getMissionStore } from './missionStore.js';
 // Registers Socket.IO handlers for rooms, movement, roles, Ready, chat, and missions.
 //
 // This file is the "switchboard". It listens for messages from one player's browser,
@@ -7,13 +8,13 @@
 import { createRoom, joinRoom, leaveRoom, getRoom } from './rooms.js';
 import {
   movePlayer, selectRole, cancelRole, setReady, startMission, createChatMessage,
-  checkCanSubmit, getMissionStartTime, recordPass, deployMission,
+  checkCanSubmit, getMissionRunId, recordPass, deployMission,
 } from './gameState.js';
 import { reviewSubmission } from './challenges.js';
 
 // Called once for every player who connects.
 // `io` = the whole server (can talk to everyone). `socket` = this one player's connection.
-export function registerSocketHandlers(io, socket) {
+export function registerSocketHandlers(io, socket, reviewer = reviewSubmission) {
   // Sends the latest room to everyone inside it.
   function sendRoomUpdate(room) {
     io.to(room.code).emit('room:update', room);
@@ -56,12 +57,16 @@ export function registerSocketHandlers(io, socket) {
     announce(room, result); // `result` carries extras, like durationMs for deploy
   }
 
+  socket.on('mission:list', (_data, reply) => {
+    if (typeof reply === 'function') reply({ ok: true, missions: getMissionStore().list() });
+  });
+
   // ---------- room:join ----------
   // data = { name, roomCode? }. No roomCode means "create a new room for me".
   socket.on('room:join', (data, reply) => {
     // The browser might forget the reply callback or send junk. Don't crash if it does.
     if (typeof reply !== 'function') reply = () => {};
-    const { name, roomCode } = data ?? {};
+    const { name, roomCode, missionId, revision } = data ?? {};
 
     // One room at a time. The player must send room:leave before joining another.
     if (socket.data.roomCode) {
@@ -71,7 +76,7 @@ export function registerSocketHandlers(io, socket) {
 
     const result = roomCode
       ? joinRoom(roomCode, socket.id, name)
-      : createRoom(socket.id, name);
+      : createRoom(socket.id, name, missionId, revision);
 
     if (result.error) {
       reply({ ok: false, error: result.error });
@@ -160,12 +165,12 @@ export function registerSocketHandlers(io, socket) {
     }
 
     const role = check.player.role;
-    const missionId = getMissionStartTime(room); // remember which mission this was for
+    const runId = getMissionRunId(room); // remember which mission this was for
 
     let result;
     socket.data.reviewing = true;
     try {
-      result = await reviewSubmission(role, data.code); // ...wait for Gemini...
+      result = await reviewer(room.missionId, room.missionRevision, role, data.code); // ...wait for Gemini...
     } catch (err) {
       console.error(`Gemini review failed for room ${room.code}: ${err.message}`);
       reply({ ok: false, error: 'REVIEW_UNAVAILABLE' });
@@ -177,7 +182,7 @@ export function registerSocketHandlers(io, socket) {
     // While we waited, things may have changed: someone left, so the mission was reset.
     // Only count the result if it's still the same mission and this player still has this role.
     const stillSameMission = room.stage === 'mission'
-      && getMissionStartTime(room) === missionId
+      && getMissionRunId(room) === runId
       && room.players.some(p => p.id === socket.id && p.role === role);
     if (!stillSameMission) {
       console.log(`Room ${room.code}: ${role} review discarded (mission changed while waiting)`);

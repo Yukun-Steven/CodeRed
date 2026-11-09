@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "missionId": "payment-outage",
+  "revision": 1,
+  "title": "Payment Service Outage",
+  "description": "A checkout release creates duplicate requests, repeats ledger charges on retries, and reports healthy payment containers as unhealthy. Repair all three independent exercises before the team deploys.",
+  "supportedPlayerCounts": [
+    3
+  ],
+  "attribution": {
+    "team": "Yukun-Steven (Fork extension; original game by sisyphus)",
+    "project": "CODE RED! training extension",
+    "event": "Post-hackathon extension of Hack the Change YYC 2026 project",
+    "sourceRepository": "https://github.com/Yukun-Steven/CodeRed",
+    "copyright": "Original CODE RED! game: Copyright © 2026 the CODE RED! team. All rights reserved. This case was added in the Yukun-Steven Fork."
+  },
+  "completion": "all-seats-pass-then-host-deploy",
+  "seats": [
+    {
+      "seatId": "frontend-1",
+      "roleId": "frontend",
+      "roleLabel": "Frontend",
+      "challenge": {
+        "title": "Stop Duplicate Checkout Requests",
+        "filename": "Checkout.tsx",
+        "editorLanguage": "typescript",
+        "description": "The injected submitPayment(): Promise<void> sends a payment request. Prevent overlapping calls, including two immediate handler invocations before React re-renders. Disable the Pay button while pending, show success or failure, and allow another attempt after either outcome. Keep this component and its submitPayment prop. Backend idempotency is a separate task.",
+        "starterCode": "import { useState } from 'react';\n\ntype Props = { submitPayment: () => Promise<void> };\n\nexport default function Checkout({ submitPayment }: Props) {\n  const [status, setStatus] = useState('Ready');\n\n  async function pay() {\n    setStatus('Sending');\n    await submitPayment();\n    setStatus('Paid');\n  }\n\n  return (\n    <section>\n      <p role=\"status\">{status}</p>\n      <button onClick={pay}>Pay</button>\n    </section>\n  );\n}",
+        "initialTerminal": "[Example incident output — not an executed test]\ncheckout request A: POST /payments\ncheckout request B: POST /payments (same pending checkout)\nExpected concurrent requests: 1\nObserved: 2\n\nHint: Separate a synchronous guard from the state used to render the button; cleanup belongs on both completion paths.",
+        "hint": "Separate a synchronous guard from the state used to render the button; cleanup belongs on both completion paths.",
+        "testPreview": {
+          "filename": "Checkout.tsx.acceptance.txt",
+          "language": "plaintext",
+          "content": "Acceptance scenarios (illustrative; not executable tests)\n\n1. Hold submitPayment pending; invoke pay twice immediately: call count is 1.\n2. While pending: Pay is disabled.\n3. Resolve: status shows success; a new click can submit.\n4. Reject: status shows failure; no uncaught rejection; retry can submit.",
+          "executable": false
+        },
+        "review": {
+          "mode": "gemini-review",
+          "language": "typescript",
+          "task": "The injected submitPayment(): Promise<void> sends a payment request. Prevent overlapping calls, including two immediate handler invocations before React re-renders. Disable the Pay button while pending, show success or failure, and allow another attempt after either outcome. Keep this component and its submitPayment prop. Backend idempotency is a separate task.",
+          "expected": "Only one request is in flight; the button reflects pending state. Success and rejected promises are handled, and pending state always clears.",
+          "criteria": [
+            "Acquire a synchronous in-flight guard before calling submitPayment; a useState-only check or disabled button alone does not cover two calls before re-render.",
+            "Call the provided submitPayment exactly once for an accepted attempt and await it; do not replace it with a simulated success.",
+            "Disable the rendered Pay button during the request and retain the status display.",
+            "Handle rejection without an unhandled promise and show failure; show success only on resolution.",
+            "Release the guard and clear the UI pending state after both success and failure, so subsequent attempts work."
+          ]
+        }
+      }
+    },
+    {
+      "seatId": "backend-1",
+      "roleId": "backend",
+      "roleLabel": "Backend",
+      "challenge": {
+        "title": "Make Ledger Retries Idempotent",
+        "filename": "ledger.js",
+        "editorLanguage": "javascript",
+        "description": "This synchronous in-memory exercise receives valid nonempty string orderIds and positive integer amounts in cents. Repeating an orderId with the same amount must return the original receipt without another debit or receipt ID. Reusing the ID with a different amount must throw before changing any state. New order IDs still debit normally. Keep the exports and receipt shape. Cross-process persistence and concurrent async calls are outside this exercise.",
+        "starterCode": "let totalDebited = 0;\nlet nextReceiptId = 1;\n\nfunction charge(orderId, amount) {\n  totalDebited += amount;\n  return { receiptId: nextReceiptId++, orderId, amount };\n}\n\nfunction getTotalDebited() {\n  return totalDebited;\n}\n\nmodule.exports = { charge, getTotalDebited };\n",
+        "initialTerminal": "[Example incident output — not an executed test]\norder-a amount=2500 receipt=1\nretry order-a amount=2500 receipt=2\nExpected totalDebited: 2500\nObserved: 5000\n\nHint: Look up the order before any side effect, and distinguish a retry from a conflicting request.",
+        "hint": "Look up the order before any side effect, and distinguish a retry from a conflicting request.",
+        "testPreview": {
+          "filename": "ledger.js.acceptance.txt",
+          "language": "plaintext",
+          "content": "Acceptance scenarios (illustrative; not executable tests)\n\nFresh module:\ncharge(\"order-a\", 2500) -> receiptId 1\ncharge(\"order-a\", 2500) -> same receipt; total 2500\ncharge(\"order-a\", 3000) -> throws; total remains 2500\ncharge(\"order-b\", 700) -> receiptId 2; total 3200\nRepeat with orderId \"__proto__\": same idempotency rules apply.",
+          "executable": false
+        },
+        "review": {
+          "mode": "gemini-review",
+          "language": "javascript",
+          "task": "This synchronous in-memory exercise receives valid nonempty string orderIds and positive integer amounts in cents. Repeating an orderId with the same amount must return the original receipt without another debit or receipt ID. Reusing the ID with a different amount must throw before changing any state. New order IDs still debit normally. Keep the exports and receipt shape. Cross-process persistence and concurrent async calls are outside this exercise.",
+          "expected": "Same ID and amount returns the stored receipt and leaves total/sequence unchanged. Conflicting amounts throw without mutation. Different IDs create independent receipts.",
+          "criteria": [
+            "Store receipts across calls, keyed by the complete orderId; use a Map or equally safe own-key storage that handles IDs such as __proto__.",
+            "Check for an existing order before incrementing totalDebited or nextReceiptId.",
+            "For the same amount, return the previously stored receipt with the original receiptId and do not debit again.",
+            "For a changed amount, throw and leave the original receipt, debit total and receipt sequence unchanged.",
+            "For a new ID, add the amount once, create/store a receipt with receiptId/orderId/amount, and preserve both exported functions."
+          ]
+        }
+      }
+    },
+    {
+      "seatId": "devops-1",
+      "roleId": "devops",
+      "roleLabel": "DevOps",
+      "challenge": {
+        "title": "Repair the Payment Health Check",
+        "filename": "Dockerfile",
+        "editorLanguage": "dockerfile",
+        "description": "The exercise image already includes curl and the payment app. The app listens on port 8080 and GET /health returns HTTP 200 when healthy or HTTP 503 when not ready. Repair the Docker HEALTHCHECK so healthy responses succeed and connection errors or HTTP 4xx/5xx fail. Preserve the base image and CMD; use 30s interval, 3s timeout, 10s start period and 3 retries. No real image pull or deployment is performed.",
+        "starterCode": "FROM example.invalid/training/payments-with-curl:1\nEXPOSE 8080\nHEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 CMD curl http://localhost:3000/health || exit 0\nCMD [\"node\", \"server.js\"]\n",
+        "initialTerminal": "[Example incident output — not an executed test]\napp: listening on :8080\nhealthcheck: connection refused at :3000\nhealthcheck exit: 0 (incorrectly healthy)\n\nHint: A request can connect successfully and still report an unhealthy HTTP status. Check both the port and failure exit behavior.",
+        "hint": "A request can connect successfully and still report an unhealthy HTTP status. Check both the port and failure exit behavior.",
+        "testPreview": {
+          "filename": "Dockerfile.acceptance.txt",
+          "language": "plaintext",
+          "content": "Acceptance scenarios (illustrative; not executable tests)\n\nHealthy app (8080/health -> 200): check exits 0.\nApp unavailable: check exits nonzero.\nApp responds 503: check exits nonzero.\nReview the command only; example.invalid is a fictional image registry.",
+          "executable": false
+        },
+        "review": {
+          "mode": "gemini-review",
+          "language": "dockerfile",
+          "task": "The exercise image already includes curl and the payment app. The app listens on port 8080 and GET /health returns HTTP 200 when healthy or HTTP 503 when not ready. Repair the Docker HEALTHCHECK so healthy responses succeed and connection errors or HTTP 4xx/5xx fail. Preserve the base image and CMD; use 30s interval, 3s timeout, 10s start period and 3 retries. No real image pull or deployment is performed.",
+          "expected": "The health check queries localhost:8080/health, returns success only for a healthy HTTP response and exits nonzero on transport or HTTP errors.",
+          "criteria": [
+            "Use valid Dockerfile HEALTHCHECK syntax with the stated interval, timeout, start-period and retry settings.",
+            "The active check targets http://localhost:8080/health with curl; no active check targets port 3000.",
+            "Make curl fail on HTTP errors using --fail, -f or equivalent supported curl behavior, and propagate a nonzero exit status on request failure.",
+            "Remove unconditional-success fallbacks such as || exit 0; do not disable health checks or replace the request with a constant result.",
+            "Preserve the supplied FROM and CMD and port 8080 exposure; commented-out fixes do not count."
+          ]
+        }
+      }
+    }
+  ]
+}
